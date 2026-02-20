@@ -38,11 +38,18 @@ const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/purali
 const PORT = process.env.PORT || 4000;
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://127.0.0.1:5502/index.html';
 
+console.log('Connecting to MongoDB...');
 mongoose.connect(MONGODB_URI).then(async ()=>{
-  await seedIfEmpty();
+  console.log('MongoDB connected successfully');
+  try {
+    await seedIfEmpty();
+    console.log('Seed check complete');
+  } catch(seedErr) {
+    console.error('Seed error (non-fatal):', seedErr.message);
+  }
   app.listen(PORT, ()=> console.log(`API on http://localhost:${PORT}`));
 }).catch(err=>{
-  console.error('Mongo connection error', err);
+  console.error('Mongo connection error:', err.message);
   process.exit(1);
 });
 
