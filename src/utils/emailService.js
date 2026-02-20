@@ -1,29 +1,13 @@
-import nodemailer from 'nodemailer';
 import dotenv from 'dotenv';
 
 dotenv.config();
 
-const smtpPort = parseInt(process.env.EMAIL_PORT || '465');
-const transporter = nodemailer.createTransport({
-  host: process.env.EMAIL_HOST,
-  port: smtpPort,
-  secure: smtpPort === 465,
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
-  tls: { rejectUnauthorized: false },
-  connectionTimeout: 10000,
-  greetingTimeout: 10000,
-  socketTimeout: 15000,
-});
+const BREVO_API_KEY = process.env.BREVO_API_KEY || '';
+const FROM_EMAIL = process.env.EMAIL_FROM || 'noreply@puralino.com';
+const FROM_NAME = 'Pura Lino';
 
-const FROM = process.env.EMAIL_FROM || 'noreply@puralino.com';
-
-transporter.verify((err) => {
-  if (err) console.error('📧 SMTP connection error:', err.message);
-  else console.log('📧 SMTP ready (Brevo) — From:', FROM);
-});
+if (BREVO_API_KEY) console.log('📧 Brevo HTTP API ready — From:', FROM_EMAIL);
+else console.warn('📧 BREVO_API_KEY not set — emails will not be sent');
 
 // ─── Shared layout ───────────────────────────────────────────
 function layout(title, body) {
@@ -58,13 +42,29 @@ function copFmt(value) {
   return new Intl.NumberFormat('es-CO', { style:'currency', currency:'COP', minimumFractionDigits:0, maximumFractionDigits:0 }).format(value);
 }
 
-// ─── Send helper ─────────────────────────────────────────────
+// ─── Send helper (Brevo HTTP API) ────────────────────────────
 async function send(to, subject, html) {
+  if (!BREVO_API_KEY) { console.error('📧 No API key, skipping email'); return null; }
   try {
     console.log(`📧 Sending "${subject}" to ${to}`);
-    const info = await transporter.sendMail({ from: FROM, to, subject, html });
-    console.log('📧 Sent OK, messageId:', info.messageId);
-    return info;
+    const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: {
+        'accept': 'application/json',
+        'content-type': 'application/json',
+        'api-key': BREVO_API_KEY,
+      },
+      body: JSON.stringify({
+        sender: { name: FROM_NAME, email: FROM_EMAIL },
+        to: [{ email: to }],
+        subject,
+        htmlContent: html,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) { console.error('📧 Brevo error:', data.message || JSON.stringify(data)); throw new Error(data.message || 'Email send failed'); }
+    console.log('📧 Sent OK, messageId:', data.messageId);
+    return data;
   } catch (err) {
     console.error('📧 Send failed:', err.message);
     throw err;
