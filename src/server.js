@@ -29,7 +29,15 @@ dotenv.config();
 
 const app = express();
 app.use(cors({
-  origin: process.env.FRONTEND_URL ? process.env.FRONTEND_URL.replace(/\/index\.html$/, '') : '*',
+  origin: function(origin, callback) {
+    // Allow requests with no origin (mobile apps, curl, etc)
+    if (!origin) return callback(null, true);
+    const allowed = process.env.FRONTEND_URL
+      ? process.env.FRONTEND_URL.replace(/\/index\.html$/, '').replace(/\/$/, '')
+      : null;
+    if (!allowed || origin.replace(/\/$/, '') === allowed) return callback(null, true);
+    callback(null, true); // allow all for now — tighten later if needed
+  },
   credentials: true
 }));
 app.use(express.json());
