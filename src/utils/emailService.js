@@ -108,7 +108,10 @@ export async function sendOrderConfirmation(order) {
     <div style="background:#faf9f7;border-radius:8px;padding:16px;margin:16px 0;">
       <p style="margin:0 0 4px;"><strong>Pedido #:</strong> ${order.invoiceNumber}</p>
       <p style="margin:0 0 4px;"><strong>Fecha:</strong> ${new Date(order.date).toLocaleDateString('es-CO')}</p>
-      <p style="margin:0;"><strong>Dirección:</strong> ${order.address || 'N/A'}</p>
+      <p style="margin:0 0 4px;"><strong>Dirección:</strong> ${order.address || 'N/A'}${order.address2 ? ', ' + order.address2 : ''}</p>
+      <p style="margin:0 0 4px;"><strong>Ciudad:</strong> ${order.shippingCity || ''}, ${order.department || ''}</p>
+      ${order.postalCode ? `<p style="margin:0 0 4px;"><strong>C.P.:</strong> ${order.postalCode}</p>` : ''}
+      ${order.cedula ? `<p style="margin:0;"><strong>Cédula:</strong> ${order.cedula}</p>` : ''}
     </div>
     <table style="width:100%;border-collapse:collapse;margin:16px 0;">
       <thead><tr style="background:#8b7355;color:#fff;">
@@ -147,11 +150,13 @@ export async function sendInvoiceEmail(order) {
         <p style="margin:2px 0;color:#555;"><strong>Cliente:</strong> ${order.userName}</p>
         <p style="margin:2px 0;color:#555;"><strong>Email:</strong> ${order.email}</p>
         <p style="margin:2px 0;color:#555;"><strong>Teléfono:</strong> ${order.phone || 'N/A'}</p>
+        ${order.cedula ? `<p style="margin:2px 0;color:#555;"><strong>Cédula:</strong> ${order.cedula}</p>` : ''}
       </div>
       <div>
         <p style="margin:2px 0;color:#555;"><strong>Fecha:</strong> ${new Date(order.date).toLocaleDateString('es-CO')}</p>
-        <p style="margin:2px 0;color:#555;"><strong>Dirección:</strong> ${order.address || 'N/A'}</p>
-        ${order.shippingCity ? `<p style="margin:2px 0;color:#555;"><strong>Ciudad:</strong> ${order.shippingCity}</p>` : ''}
+        <p style="margin:2px 0;color:#555;"><strong>Dirección:</strong> ${order.address || 'N/A'}${order.address2 ? ', ' + order.address2 : ''}</p>
+        <p style="margin:2px 0;color:#555;"><strong>Ciudad:</strong> ${order.shippingCity || ''}, ${order.department || ''}</p>
+        ${order.postalCode ? `<p style="margin:2px 0;color:#555;"><strong>C.P.:</strong> ${order.postalCode}</p>` : ''}
       </div>
     </div>
     <table style="width:100%;border-collapse:collapse;">

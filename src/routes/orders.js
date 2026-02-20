@@ -51,7 +51,7 @@ router.post('/:id/tracking', authRequired, adminOnly, async (req,res)=>{
 
 router.post('/', authRequired, async (req,res)=>{
   try{
-    const { items, promoCode, address, phone, paymentMethod, userName, email, shippingCity, shippingCost, giftCardCode } = req.body;
+    const { items, promoCode, address, address2, department, postalCode, cedula, phone, paymentMethod, userName, email, shippingCity, shippingCost, giftCardCode } = req.body;
 
     // ── Business rules ──────────────────────────────────
     // 1. Account must be verified
@@ -150,7 +150,7 @@ router.post('/', authRequired, async (req,res)=>{
 
     const order = await Order.create({
       userId: req.user.id,
-      userName, email, address, phone,
+      userName, email, address, address2: address2||'', department: department||'', postalCode: postalCode||'', cedula: cedula||'', phone,
       paymentMethod,
       items: orderItems,
       subtotal, discount, shippingCity, shippingCost: shipping, giftCardCode: giftCodeSaved, giftApplied, total,
