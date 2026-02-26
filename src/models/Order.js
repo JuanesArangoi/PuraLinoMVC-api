@@ -29,7 +29,7 @@ const OrderSchema = new mongoose.Schema({
   postalCode: String,
   cedula: String,
   phone: String,
-  paymentMethod: { type: String, enum: ['credit','debit','paypal','pse','cod'] },
+  paymentMethod: { type: String, enum: ['credit','debit','paypal','pse','cod','mercadopago'] },
   items: [OrderItemSchema],
   subtotal: Number,
   discount: Number,
@@ -38,12 +38,14 @@ const OrderSchema = new mongoose.Schema({
   giftCardCode: String,
   giftApplied: { type: Number, default: 0 },
   total: Number,
-  status: { type: String, enum:['confirmado','enviado','entregado'], default:'confirmado' },
+  status: { type: String, enum:['pendiente_pago','confirmado','enviado','entregado'], default:'confirmado' },
   date: Date,
   invoiceNumber: String
   ,trackingNumber: String
   ,carrier: String
   ,trackingEvents: { type: [TrackingEventSchema], default: [] }
+  ,mpPaymentId: String
+  ,mpStatus: String
 }, { timestamps:true });
 
 export const Order = mongoose.model('Order', OrderSchema);
