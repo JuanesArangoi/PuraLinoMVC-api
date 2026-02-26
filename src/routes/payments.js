@@ -274,6 +274,163 @@ router.get('/status/:orderId', authRequired, async (req, res) => {
   }
 });
 
+// ── POST /payments/process ──
+// Checkout API: receives a card token from the frontend, creates payment directly
+router.post('/process', authRequired, async (req, res) => {
+  try {
+    const {
+      token, installments, issuerId, paymentMethodId,
+      items, promoCode, address, address2, department, postalCode,
+      cedula, phone, userName, email,
+      shippingCity, shippingCost, giftCardCode, payerEmail
+    } = req.body;
+
+    if (!token) return res.status(400).json({ error: 'Token de pago requerido' });
+
+    // ── Validations ──
+    const requester = await User.findById(req.user.id);
+    if (!requester || !requester.emailVerified) {
+      return res.status(403).json({ error: 'Debes verificar tu cuenta de correo antes de realizar pedidos.' });
+    }
+    if (!address || !address.trim()) return res.status(400).json({ error: 'La dirección de envío es obligatoria' });
+    if (!phone || !phone.trim()) return res.status(400).json({ error: 'El número de teléfono es obligatorio' });
+    if (!shippingCity || !shippingCity.trim()) return res.status(400).json({ error: 'La ciudad de envío es obligatoria' });
+    if (!Array.isArray(items) || items.length === 0) return res.status(400).json({ error: 'El carrito está vacío' });
+
+    // Validate stock and compute subtotal
+    const productIds = items.map(i => i.productId);
+    const products = await Product.find({ _id: { $in: productIds } });
+    const map = new Map(products.map(p => [String(p._id), p]));
+
+    let subtotal = 0;
+    const orderItems = [];
+    for (const it of items) {
+      const p = map.get(String(it.productId));
+      if (!p) throw new Error('Product not found');
+      let unitPrice = p.price;
+      if (it.variantId) {
+        const v = (p.variants || []).find(v => String(v._id) === String(it.variantId));
+        if (!v) throw new Error('Variant not found');
+        if (v.stock < it.quantity) throw new Error(`Stock insuficiente para ${p.name} (${v.size}/${v.color})`);
+        if (typeof v.priceOverride === 'number') unitPrice = v.priceOverride;
+        orderItems.push({ productId: p._id, productName: p.name, productPrice: unitPrice, quantity: it.quantity, category: p.category, variant: { id: v._id, size: v.size, color: v.color } });
+      } else {
+        if (p.stock < it.quantity) throw new Error(`Stock insuficiente para ${p.name}`);
+        orderItems.push({ productId: p._id, productName: p.name, productPrice: unitPrice, quantity: it.quantity, category: p.category });
+      }
+      subtotal += unitPrice * it.quantity;
+    }
+
+    let discount = 0;
+    let total = subtotal;
+    if (promoCode) {
+      const promo = await Promotion.findOne({ code: promoCode.toUpperCase(), active: true });
+      if (!promo) return res.status(400).json({ error: 'Código de promoción inválido' });
+      discount = subtotal * (promo.discount / 100);
+      total = subtotal - discount;
+    }
+
+    let shipping = 0;
+    if (shippingCity) {
+      const tariffs = { 'Bogotá': 12000, 'Medellín': 15000, 'Cali': 15000 };
+      shipping = tariffs[shippingCity] ?? 18000;
+      total += shipping;
+    }
+
+    let giftApplied = 0;
+    let giftCodeSaved = undefined;
+    if (giftCardCode) {
+      const gc = await GiftCard.findOne({ code: String(giftCardCode).toUpperCase(), active: true });
+      if (!gc) return res.status(400).json({ error: 'Gift card inválida' });
+      giftApplied = Math.min(gc.balance, total);
+      total = total - giftApplied;
+      giftCodeSaved = gc.code;
+    }
+
+    // Create order first
+    const order = await Order.create({
+      userId: req.user.id,
+      userName, email, address, address2: address2 || '', department: department || '',
+      postalCode: postalCode || '', cedula: cedula || '', phone,
+      paymentMethod: 'mercadopago',
+      items: orderItems,
+      subtotal, discount, shippingCity, shippingCost: shipping,
+      giftCardCode: giftCodeSaved, giftApplied, total,
+      status: 'pendiente_pago',
+      date: new Date(),
+      invoiceNumber: `FAC-${Date.now()}`
+    });
+
+    // Process payment with MP
+    const paymentClient = new Payment(mpClient);
+    const mpPayment = await paymentClient.create({
+      body: {
+        transaction_amount: total,
+        token: token,
+        description: `Pedido PuraLino #${order.invoiceNumber}`,
+        installments: installments || 1,
+        payment_method_id: paymentMethodId || undefined,
+        issuer_id: issuerId || undefined,
+        payer: { email: payerEmail || email },
+        external_reference: String(order._id),
+      }
+    });
+
+    // Update order based on payment result
+    order.mpPaymentId = String(mpPayment.id);
+    order.mpStatus = mpPayment.status;
+
+    if (mpPayment.status === 'approved') {
+      order.status = 'confirmado';
+      await order.save();
+
+      // Decrement stock
+      for (const item of order.items) {
+        if (item.variant?.id) {
+          await Product.updateOne(
+            { _id: item.productId, 'variants._id': item.variant.id, 'variants.stock': { $gte: item.quantity } },
+            { $inc: { 'variants.$.stock': -item.quantity } }
+          );
+        } else {
+          await Product.updateOne(
+            { _id: item.productId, stock: { $gte: item.quantity } },
+            { $inc: { stock: -item.quantity } }
+          );
+        }
+      }
+
+      // Debit gift card
+      if (giftCodeSaved && giftApplied > 0) {
+        const gc = await GiftCard.findOne({ code: giftCodeSaved, active: true });
+        if (gc) {
+          gc.balance = Math.max(0, gc.balance - giftApplied);
+          if (gc.balance <= 0) gc.active = false;
+          await gc.save();
+        }
+      }
+
+      // Send emails
+      if (order.email) {
+        sendOrderConfirmation(order).catch(e => console.error('📧 MP order email failed:', e.message));
+        sendInvoiceEmail(order).catch(e => console.error('📧 MP invoice email failed:', e.message));
+      }
+
+      res.json({ status: 'approved', order: order.toObject() });
+    } else if (mpPayment.status === 'rejected') {
+      await order.save();
+      const detail = mpPayment.status_detail || 'rejected';
+      res.status(400).json({ status: 'rejected', error: `Pago rechazado: ${detail}`, detail });
+    } else {
+      // pending / in_process
+      await order.save();
+      res.json({ status: mpPayment.status, orderId: order._id, message: 'Pago pendiente de confirmación' });
+    }
+  } catch (err) {
+    console.error('MP process payment error:', err);
+    res.status(400).json({ error: err.message || 'Error processing payment' });
+  }
+});
+
 // ── GET /payments/config ──
 // Returns the MP public key for frontend SDK initialization
 router.get('/config', (req, res) => {
