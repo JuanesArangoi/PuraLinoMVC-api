@@ -361,20 +361,33 @@ router.post('/process', authRequired, async (req, res) => {
       invoiceNumber: `FAC-${Date.now()}`
     });
 
-    // Process payment with MP
-    const paymentClient = new Payment(mpClient);
-    const mpPayment = await paymentClient.create({
-      body: {
-        transaction_amount: total,
-        token: token,
-        description: `Pedido PuraLino #${order.invoiceNumber}`,
-        installments: installments || 1,
-        payment_method_id: paymentMethodId || undefined,
-        issuer_id: issuerId || undefined,
-        payer: { email: payerEmail || email },
-        external_reference: String(order._id),
-      }
-    });
+    // Process payment with MP (or simulate in sandbox mode)
+    const isSandbox = process.env.MP_SANDBOX === 'true';
+    let mpPayment;
+
+    if (isSandbox) {
+      // Simulate approved payment for testing
+      console.log('🧪 MP_SANDBOX mode: simulating approved payment for order', order.invoiceNumber);
+      mpPayment = {
+        id: `SANDBOX-${Date.now()}`,
+        status: 'approved',
+        status_detail: 'accredited',
+      };
+    } else {
+      const paymentClient = new Payment(mpClient);
+      mpPayment = await paymentClient.create({
+        body: {
+          transaction_amount: total,
+          token: token,
+          description: `Pedido PuraLino #${order.invoiceNumber}`,
+          installments: installments || 1,
+          payment_method_id: paymentMethodId || undefined,
+          issuer_id: issuerId || undefined,
+          payer: { email: payerEmail || email },
+          external_reference: String(order._id),
+        }
+      });
+    }
 
     // Update order based on payment result
     order.mpPaymentId = String(mpPayment.id);
