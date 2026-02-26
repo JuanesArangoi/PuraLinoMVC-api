@@ -362,7 +362,9 @@ router.post('/process', authRequired, async (req, res) => {
     });
 
     // Process payment with MP (or simulate in sandbox mode)
-    const isSandbox = process.env.MP_SANDBOX === 'true';
+    const sandboxVal = (process.env.MP_SANDBOX || '').trim().toLowerCase();
+    const isSandbox = sandboxVal === 'true' || sandboxVal === '1' || sandboxVal === 'yes';
+    console.log('MP_SANDBOX env value:', JSON.stringify(process.env.MP_SANDBOX), '→ isSandbox:', isSandbox);
     let mpPayment;
 
     if (isSandbox) {
