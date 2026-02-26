@@ -449,7 +449,9 @@ router.post('/process', authRequired, async (req, res) => {
 // ── GET /payments/config ──
 // Returns the MP public key for frontend SDK initialization
 router.get('/config', (req, res) => {
-  res.json({ publicKey: process.env.MP_PUBLIC_KEY || '' });
+  const sandboxVal = (process.env.MP_SANDBOX || '').trim().toLowerCase();
+  const isSandbox = sandboxVal === 'true' || sandboxVal === '1' || sandboxVal === 'yes';
+  res.json({ publicKey: process.env.MP_PUBLIC_KEY || '', sandbox: isSandbox });
 });
 
 export default router;
