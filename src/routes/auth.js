@@ -92,7 +92,7 @@ router.post('/login', async (req,res)=>{
       id:String(user._id), 
       role:user.role, 
       name:user.name 
-    }, process.env.JWT_SECRET || 'dev_secret', { expiresIn:'2h' });
+    }, process.env.JWT_SECRET || 'dev_secret', { expiresIn:'7d' });
     
     res.json({ 
       token, 
@@ -213,20 +213,50 @@ router.post('/forgot-password', async (req, res) => {
 
 // Reset password page (GET)
 router.get('/reset-password', async (req, res) => {
+  const FRONTEND = process.env.FRONTEND_URL || 'http://127.0.0.1:5502/index.html';
+  const baseStyle = `<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Restablecer Contraseña — Pura Lino</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{min-height:100vh;display:flex;align-items:center;justify-content:center;background:#f5f5f0;font-family:Inter,'Segoe UI',Arial,sans-serif;padding:1rem}
+  .card{background:#fff;border-radius:14px;box-shadow:0 8px 32px rgba(0,0,0,.1);max-width:440px;width:100%;overflow:hidden}
+  .header{background:#8b7355;padding:24px;text-align:center;color:#fff;font-size:20px;letter-spacing:2px;font-weight:700}
+  .body{padding:40px 32px}
+  .icon{font-size:4rem;text-align:center;margin-bottom:16px}
+  h2{color:#333;margin:0 0 12px;text-align:center}
+  p{color:#666;line-height:1.6;margin:8px 0;text-align:center}
+  .form-group{margin-bottom:1rem}
+  .form-group label{display:block;margin-bottom:.4rem;font-size:.9rem;font-weight:500;color:#333}
+  .form-group input{width:100%;padding:.75rem .9rem;border:1px solid #eaeaea;border-radius:10px;font-size:1rem;transition:border-color .2s;outline:none;font-family:inherit}
+  .form-group input:focus{border-color:#8b7355}
+  .btn{display:block;width:100%;margin-top:1.25rem;padding:14px;background:#111;color:#fff;border:none;border-radius:999px;font-size:1rem;font-weight:600;cursor:pointer;transition:background .2s;font-family:inherit}
+  .btn:hover{background:#333}
+  .btn-link{display:inline-block;margin-top:20px;padding:14px 36px;background:#8b7355;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;transition:background .2s}
+  .btn-link:hover{background:#74604a}
+  .error{color:#dc3545;margin-top:.75rem;font-size:.88rem;text-align:center;min-height:1.2em}
+  .countdown{color:#8b7355;font-weight:600;font-size:1.1rem;text-align:center}
+  .hint{font-size:.8rem;color:#999;margin-top:.3rem}
+  @media(max-width:480px){.body{padding:28px 20px} h2{font-size:1.15rem}}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="header">PURA LINO</div>
+  <div class="body">`;
+  const endCard = `</div></div></body></html>`;
+
   try {
     const { token } = req.query;
     
     if (!token) {
-      return res.status(400).send(`
-        <html>
-          <head><title>Error de Reset</title></head>
-          <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 50px auto;">
-            <h2 style="color: #dc3545;">Error</h2>
-            <p>Token de reset no proporcionado.</p>
-            <a href="${process.env.FRONTEND_URL || 'http://127.0.0.1:5502/index.html'}">Volver al inicio</a>
-          </body>
-        </html>
-      `);
+      return res.status(400).send(`${baseStyle}
+    <div class="icon">⚠️</div>
+    <h2>Token No Proporcionado</h2>
+    <p>No se encontró un token de recuperación en el enlace.</p>
+    <a href="${FRONTEND}" class="btn-link" style="display:block;text-align:center;margin-top:20px;">Volver al inicio</a>
+${endCard}`);
     }
     
     const user = await User.findOne({
@@ -235,98 +265,76 @@ router.get('/reset-password', async (req, res) => {
     });
     
     if (!user) {
-      return res.status(400).send(`
-        <html>
-          <head><title>Token Inválido</title></head>
-          <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 50px auto;">
-            <h2 style="color: #dc3545;">Token Inválido o Expirado</h2>
-            <p>El enlace de reset de contraseña no es válido o ha expirado.</p>
-            <p>Por favor solicita un nuevo enlace de recuperación.</p>
-            <a href="${process.env.FRONTEND_URL || 'http://127.0.0.1:5502/index.html'}">Volver al inicio</a>
-          </body>
-        </html>
-      `);
+      return res.status(400).send(`${baseStyle}
+    <div class="icon">❌</div>
+    <h2>Enlace Inválido o Expirado</h2>
+    <p>Este enlace de recuperación ya no es válido o ha expirado.</p>
+    <p>Por favor solicita un nuevo enlace desde la aplicación.</p>
+    <a href="${FRONTEND}" class="btn-link" style="display:block;text-align:center;margin-top:20px;">Volver al inicio</a>
+${endCard}`);
     }
     
     // Send HTML form for password reset
-    res.send(`
-      <html>
-        <head>
-          <title>Restablecer Contraseña - Pura Lino</title>
-          <style>
-            body { font-family: Arial, sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; }
-            .form-group { margin-bottom: 15px; }
-            label { display: block; margin-bottom: 5px; font-weight: bold; }
-            input { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; }
-            button { background-color: #007bff; color: white; padding: 12px 30px; border: none; border-radius: 4px; cursor: pointer; }
-            button:hover { background-color: #0056b3; }
-            .error { color: #dc3545; margin-top: 10px; }
-          </style>
-        </head>
-        <body>
-          <h2>Restablecer Contraseña</h2>
-          <p>Ingresa tu nueva contraseña:</p>
-          <form id="resetForm" onsubmit="resetPassword(event)">
-            <input type="hidden" id="token" value="${token}">
-            <div class="form-group">
-              <label for="newPassword">Nueva Contraseña:</label>
-              <input type="password" id="newPassword" required>
-            </div>
-            <div class="form-group">
-              <label for="confirmPassword">Confirmar Nueva Contraseña:</label>
-              <input type="password" id="confirmPassword" required>
-            </div>
-            <button type="submit">Restablecer Contraseña</button>
-            <div id="error" class="error"></div>
-          </form>
+    res.send(`${baseStyle}
+    <div class="icon">🔒</div>
+    <h2>Restablecer Contraseña</h2>
+    <p style="margin-bottom:1.5rem;">Ingresa tu nueva contraseña para recuperar el acceso a tu cuenta.</p>
+    <form id="resetForm" onsubmit="resetPassword(event)">
+      <input type="hidden" id="token" value="${token}">
+      <div class="form-group">
+        <label for="newPassword">Nueva Contraseña</label>
+        <input type="password" id="newPassword" required placeholder="Mínimo 8 caracteres" minlength="8">
+        <p class="hint">Debe contener al menos una mayúscula, una minúscula y un número.</p>
+      </div>
+      <div class="form-group">
+        <label for="confirmPassword">Confirmar Contraseña</label>
+        <input type="password" id="confirmPassword" required placeholder="Repite tu contraseña">
+      </div>
+      <button class="btn" type="submit">Restablecer Contraseña</button>
+      <div id="error" class="error"></div>
+    </form>
+    
+    <script>
+      async function resetPassword(event) {
+        event.preventDefault();
+        const btn = event.target.querySelector('.btn');
+        const newPassword = document.getElementById('newPassword').value;
+        const confirmPassword = document.getElementById('confirmPassword').value;
+        const token = document.getElementById('token').value;
+        const errorDiv = document.getElementById('error');
+        errorDiv.textContent = '';
+        
+        if (newPassword.length < 8) { errorDiv.textContent = 'La contraseña debe tener al menos 8 caracteres'; return; }
+        if (!/[A-Z]/.test(newPassword)) { errorDiv.textContent = 'Debe contener al menos una letra mayúscula'; return; }
+        if (!/[a-z]/.test(newPassword)) { errorDiv.textContent = 'Debe contener al menos una letra minúscula'; return; }
+        if (!/[0-9]/.test(newPassword)) { errorDiv.textContent = 'Debe contener al menos un número'; return; }
+        if (newPassword !== confirmPassword) { errorDiv.textContent = 'Las contraseñas no coinciden'; return; }
+        
+        btn.disabled = true; btn.textContent = 'Procesando...';
+        try {
+          const response = await fetch('/auth/reset-password', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token, newPassword })
+          });
+          const data = await response.json();
+          if (!response.ok) throw new Error(data.error || 'Error al restablecer contraseña');
           
-          <script>
-            async function resetPassword(event) {
-              event.preventDefault();
-              
-              const newPassword = document.getElementById('newPassword').value;
-              const confirmPassword = document.getElementById('confirmPassword').value;
-              const token = document.getElementById('token').value;
-              const errorDiv = document.getElementById('error');
-              
-              if (newPassword !== confirmPassword) {
-                errorDiv.textContent = 'Las contraseñas no coinciden';
-                return;
-              }
-              
-              try {
-                const response = await fetch('/auth/reset-password', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ token, newPassword })
-                });
-                
-                const data = await response.json();
-                
-                if (!response.ok) {
-                  throw new Error(data.error || 'Error al restablecer contraseña');
-                }
-                
-                document.body.innerHTML = \`
-                  <h2 style="color: #28a745;">¡Contraseña Actualizada!</h2>
-                  <p>Tu contraseña ha sido restablecida exitosamente.</p>
-                  <p>Serás redirigido automáticamente en 3 segundos...</p>
-                  <p>Si no eres redirigido, haz clic aquí:</p>
-                  <a href="${process.env.FRONTEND_URL || 'http://127.0.0.1:5502/index.html'}" style="color: #007bff; text-decoration: none;">Ir a Iniciar Sesión</a>
-                \`;
-                
-                // Auto redirect after 3 seconds
-                setTimeout(() => {
-                  window.location.href = '${process.env.FRONTEND_URL || 'http://127.0.0.1:5502/index.html'}';
-                }, 3000);
-              } catch (error) {
-                errorDiv.textContent = error.message;
-              }
-            }
-          </script>
-        </body>
-      </html>
-    `);
+          document.querySelector('.body').innerHTML = 
+            '<div class="icon">✅</div>' +
+            '<h2>¡Contraseña Actualizada!</h2>' +
+            '<p>Tu contraseña ha sido restablecida exitosamente.</p>' +
+            '<p class="countdown">Serás redirigido en <span id="sec">5</span> segundos...</p>' +
+            '<a href="${FRONTEND}" class="btn-link" style="display:block;text-align:center;margin-top:20px;">Ir a Iniciar Sesión</a>';
+          let s = 5; const el = document.getElementById('sec');
+          const t = setInterval(() => { s--; el.textContent = s; if (s <= 0) { clearInterval(t); location.href = '${FRONTEND}'; } }, 1000);
+        } catch (error) {
+          btn.disabled = false; btn.textContent = 'Restablecer Contraseña';
+          errorDiv.textContent = error.message;
+        }
+      }
+    </script>
+${endCard}`);
   } catch (err) {
     console.error('Reset password page error:', err);
     res.status(500).send('Error del servidor');
