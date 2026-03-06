@@ -24,7 +24,7 @@ function layout(title, body) {
       ${body}
     </div>
     <div style="background:#faf9f7;padding:20px 32px;text-align:center;border-top:1px solid #eee;">
-      <p style="color:#999;font-size:13px;margin:0;">Pura Lino — Lino Puro, Comodidad Pura</p>
+      <p style="color:#999;font-size:13px;margin:0;">Pura Lino — Tu Estilo, Las Mejores Marcas</p>
       <p style="color:#bbb;font-size:11px;margin:6px 0 0;">Este es un correo automático, por favor no respondas.</p>
     </div>
   </div>

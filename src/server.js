@@ -25,6 +25,7 @@ import purchaseOrderRoutes from './routes/purchaseOrders.js';
 import inventoryRoutes from './routes/inventory.js';
 import paymentRoutes from './routes/payments.js';
 import manualUploadRoutes from './routes/manual-upload.js';
+import settingsRoutes from './routes/settings.js';
 import { seedIfEmpty } from './seed.js';
 
 dotenv.config();
@@ -182,3 +183,4 @@ app.use('/warehouses', warehouseRoutes);
 app.use('/purchase-orders', purchaseOrderRoutes);
 app.use('/inventory', inventoryRoutes);
 app.use('/payments', paymentRoutes);
+app.use('/settings', settingsRoutes);
