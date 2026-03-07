@@ -58,7 +58,7 @@ mongoose.connect(MONGODB_URI).then(async ()=>{
   } catch(seedErr) {
     console.error('Seed error (non-fatal):', seedErr.message);
   }
-  app.listen(PORT, ()=> console.log(`API on http://localhost:${PORT}`));
+  app.listen(PORT, "0.0.0.0", ()=> console.log(`API on http://localhost:${PORT}`));
 }).catch(err=>{
   console.error('Mongo connection error:', err.message);
   process.exit(1);
