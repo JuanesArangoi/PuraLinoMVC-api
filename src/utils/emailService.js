@@ -1,13 +1,27 @@
 import dotenv from 'dotenv';
+import nodemailer from 'nodemailer';
 
 dotenv.config();
 
-const BREVO_API_KEY = process.env.BREVO_API_KEY || '';
+const SMTP_HOST = process.env.EMAIL_HOST || 'smtp-relay.brevo.com';
+const SMTP_PORT = parseInt(process.env.EMAIL_PORT || '587');
+const SMTP_USER = process.env.EMAIL_USER || '';
+const SMTP_PASS = process.env.EMAIL_PASS || process.env.BREVO_API_KEY || '';
 const FROM_EMAIL = process.env.EMAIL_FROM || 'noreply@puralino.com';
 const FROM_NAME = 'Pura Lino';
 
-if (BREVO_API_KEY) console.log('📧 Brevo HTTP API ready — From:', FROM_EMAIL);
-else console.warn('📧 BREVO_API_KEY not set — emails will not be sent');
+let transporter = null;
+if (SMTP_USER && SMTP_PASS) {
+  transporter = nodemailer.createTransport({
+    host: SMTP_HOST,
+    port: SMTP_PORT,
+    secure: false,
+    auth: { user: SMTP_USER, pass: SMTP_PASS }
+  });
+  console.log('📧 SMTP ready (nodemailer) — From:', FROM_EMAIL);
+} else {
+  console.warn('📧 EMAIL_USER/EMAIL_PASS not set — emails will not be sent');
+}
 
 // ─── Shared layout ───────────────────────────────────────────
 function layout(title, body) {
@@ -42,29 +56,19 @@ function copFmt(value) {
   return new Intl.NumberFormat('es-CO', { style:'currency', currency:'COP', minimumFractionDigits:0, maximumFractionDigits:0 }).format(value);
 }
 
-// ─── Send helper (Brevo HTTP API) ────────────────────────────
+// ─── Send helper (nodemailer SMTP) ───────────────────────────
 async function send(to, subject, html) {
-  if (!BREVO_API_KEY) { console.error('📧 No API key, skipping email'); return null; }
+  if (!transporter) { console.error('📧 No SMTP config, skipping email'); return null; }
   try {
     console.log(`📧 Sending "${subject}" to ${to}`);
-    const res = await fetch('https://api.brevo.com/v3/smtp/email', {
-      method: 'POST',
-      headers: {
-        'accept': 'application/json',
-        'content-type': 'application/json',
-        'api-key': BREVO_API_KEY,
-      },
-      body: JSON.stringify({
-        sender: { name: FROM_NAME, email: FROM_EMAIL },
-        to: [{ email: to }],
-        subject,
-        htmlContent: html,
-      }),
+    const info = await transporter.sendMail({
+      from: `"${FROM_NAME}" <${FROM_EMAIL}>`,
+      to,
+      subject,
+      html
     });
-    const data = await res.json();
-    if (!res.ok) { console.error('📧 Brevo error:', data.message || JSON.stringify(data)); throw new Error(data.message || 'Email send failed'); }
-    console.log('📧 Sent OK, messageId:', data.messageId);
-    return data;
+    console.log('📧 Sent OK, messageId:', info.messageId);
+    return info;
   } catch (err) {
     console.error('📧 Send failed:', err.message);
     throw err;
