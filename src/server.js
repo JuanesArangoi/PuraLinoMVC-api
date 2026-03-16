@@ -176,7 +176,7 @@ app.use('/users', userRoutes);
 app.use('/wishlist', wishlistRoutes);
 app.use('/shipping', shippingRoutes);
 app.use('/giftcards', giftcardRoutes);
-app.use('/', reviewsRoutes);
+app.use('/reviews', reviewsRoutes);
 app.use('/upload', uploadRoutes);
 app.use('/upload', manualUploadRoutes);
 app.use('/suppliers', supplierRoutes);

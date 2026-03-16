@@ -4,6 +4,12 @@ import { Review } from '../models/index.js';
 
 const router = express.Router();
 
+// List all pending reviews (admin) — MUST be before /:productId
+router.get('/admin/pending', authRequired, adminOnly, async (req,res)=>{
+  const list = await Review.findAll({ where: { approved:false }, order: [['createdAt', 'DESC']] });
+  res.json(list);
+});
+
 // List reviews for a product (approved only for public, all for admin)
 router.get('/:productId', async (req,res)=>{
   const { productId } = req.params;
@@ -39,12 +45,6 @@ router.patch('/:id/approve', authRequired, adminOnly, async (req,res)=>{
 router.delete('/:id', authRequired, adminOnly, async (req,res)=>{
   await Review.destroy({ where: { id: req.params.id } });
   res.json({ ok:true });
-});
-
-// List all pending reviews (admin)
-router.get('/admin/pending', authRequired, adminOnly, async (req,res)=>{
-  const list = await Review.findAll({ where: { approved:false }, order: [['createdAt', 'DESC']] });
-  res.json(list);
 });
 
 export default router;
