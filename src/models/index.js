@@ -18,7 +18,7 @@ const sequelize = new Sequelize(DATABASE_URL, {
 function withMongoId(attributes) {
   return {
     id: {
-      type: DataTypes.UUID,
+      type: DataTypes.STRING(40),
       defaultValue: DataTypes.UUIDV4,
       primaryKey: true
     },
@@ -63,7 +63,7 @@ const Product = addIdHook(sequelize.define('Product', withMongoId({
   category: { type: DataTypes.STRING, allowNull: false },
   stock: { type: DataTypes.INTEGER, defaultValue: 0 },
   description: { type: DataTypes.TEXT, defaultValue: '' },
-  supplierId: { type: DataTypes.UUID },
+  supplierId: { type: DataTypes.STRING(40) },
   supplierName: { type: DataTypes.STRING, defaultValue: '' },
   variants: { type: DataTypes.JSONB, defaultValue: [] },
   images: { type: DataTypes.JSONB, defaultValue: [] }
@@ -73,7 +73,7 @@ const Product = addIdHook(sequelize.define('Product', withMongoId({
 // ORDER  (items & trackingEvents stored as JSONB arrays)
 // ══════════════════════════════════════════════════════════════
 const Order = addIdHook(sequelize.define('Order', withMongoId({
-  userId: { type: DataTypes.UUID },
+  userId: { type: DataTypes.STRING(40) },
   userName: { type: DataTypes.STRING },
   email: { type: DataTypes.STRING },
   address: { type: DataTypes.STRING },
@@ -115,12 +115,12 @@ const Promotion = addIdHook(sequelize.define('Promotion', withMongoId({
 // ══════════════════════════════════════════════════════════════
 const Return = addIdHook(sequelize.define('Return', withMongoId({
   returnNumber: { type: DataTypes.STRING, unique: true },
-  orderId: { type: DataTypes.UUID, allowNull: false },
+  orderId: { type: DataTypes.STRING(40), allowNull: false },
   orderNumber: { type: DataTypes.STRING },
-  customerId: { type: DataTypes.UUID, allowNull: false },
+  customerId: { type: DataTypes.STRING(40), allowNull: false },
   customerName: { type: DataTypes.STRING },
   customerEmail: { type: DataTypes.STRING },
-  productId: { type: DataTypes.UUID },
+  productId: { type: DataTypes.STRING(40) },
   productName: { type: DataTypes.STRING },
   productPrice: { type: DataTypes.DOUBLE },
   quantity: { type: DataTypes.INTEGER, defaultValue: 1 },
@@ -131,7 +131,7 @@ const Return = addIdHook(sequelize.define('Return', withMongoId({
   status: { type: DataTypes.STRING, defaultValue: 'solicitada' },
   adminNotes: { type: DataTypes.TEXT },
   rejectionReason: { type: DataTypes.TEXT },
-  warehouseId: { type: DataTypes.UUID },
+  warehouseId: { type: DataTypes.STRING(40) },
   warehouseName: { type: DataTypes.STRING },
   warehouseAddress: { type: DataTypes.STRING },
   customerPaysShipping: { type: DataTypes.BOOLEAN, defaultValue: true },
@@ -148,8 +148,8 @@ const Return = addIdHook(sequelize.define('Return', withMongoId({
 // REVIEW
 // ══════════════════════════════════════════════════════════════
 const Review = addIdHook(sequelize.define('Review', withMongoId({
-  userId: { type: DataTypes.UUID, allowNull: false },
-  productId: { type: DataTypes.UUID, allowNull: false },
+  userId: { type: DataTypes.STRING(40), allowNull: false },
+  productId: { type: DataTypes.STRING(40), allowNull: false },
   rating: { type: DataTypes.INTEGER, allowNull: false },
   comment: { type: DataTypes.TEXT, defaultValue: '' },
   approved: { type: DataTypes.BOOLEAN, defaultValue: false }
@@ -159,7 +159,7 @@ const Review = addIdHook(sequelize.define('Review', withMongoId({
 // WISHLIST  (items stored as JSONB array of product UUIDs)
 // ══════════════════════════════════════════════════════════════
 const Wishlist = addIdHook(sequelize.define('Wishlist', withMongoId({
-  userId: { type: DataTypes.UUID, allowNull: false },
+  userId: { type: DataTypes.STRING(40), allowNull: false },
   items: { type: DataTypes.JSONB, defaultValue: [] }
 }), { tableName: 'wishlists' }));
 
@@ -169,11 +169,11 @@ const Wishlist = addIdHook(sequelize.define('Wishlist', withMongoId({
 const Coupon = addIdHook(sequelize.define('Coupon', withMongoId({
   code: { type: DataTypes.STRING, unique: true, allowNull: false },
   value: { type: DataTypes.DOUBLE, allowNull: false },
-  customerId: { type: DataTypes.UUID, allowNull: false },
+  customerId: { type: DataTypes.STRING(40), allowNull: false },
   customerEmail: { type: DataTypes.STRING },
-  returnId: { type: DataTypes.UUID },
+  returnId: { type: DataTypes.STRING(40) },
   used: { type: DataTypes.BOOLEAN, defaultValue: false },
-  usedOnOrder: { type: DataTypes.UUID },
+  usedOnOrder: { type: DataTypes.STRING(40) },
   expiresAt: { type: DataTypes.DATE, allowNull: false },
   active: { type: DataTypes.BOOLEAN, defaultValue: true }
 }), { tableName: 'coupons' }));
@@ -216,7 +216,7 @@ const Warehouse = addIdHook(sequelize.define('Warehouse', withMongoId({
 // ══════════════════════════════════════════════════════════════
 const PurchaseOrder = addIdHook(sequelize.define('PurchaseOrder', withMongoId({
   poNumber: { type: DataTypes.STRING, unique: true, allowNull: false },
-  supplierId: { type: DataTypes.UUID, allowNull: false },
+  supplierId: { type: DataTypes.STRING(40), allowNull: false },
   supplierName: { type: DataTypes.STRING, allowNull: false },
   items: { type: DataTypes.JSONB, defaultValue: [] },
   status: { type: DataTypes.STRING, defaultValue: 'borrador' },
@@ -229,7 +229,7 @@ const PurchaseOrder = addIdHook(sequelize.define('PurchaseOrder', withMongoId({
 // STOCK MOVEMENT
 // ══════════════════════════════════════════════════════════════
 const StockMovement = addIdHook(sequelize.define('StockMovement', withMongoId({
-  productId: { type: DataTypes.UUID, allowNull: false },
+  productId: { type: DataTypes.STRING(40), allowNull: false },
   productName: { type: DataTypes.STRING, allowNull: false },
   variantId: { type: DataTypes.STRING },
   variantLabel: { type: DataTypes.STRING, defaultValue: '' },
@@ -237,11 +237,11 @@ const StockMovement = addIdHook(sequelize.define('StockMovement', withMongoId({
   quantity: { type: DataTypes.INTEGER, allowNull: false },
   reason: { type: DataTypes.TEXT, defaultValue: '' },
   referenceType: { type: DataTypes.STRING, defaultValue: 'manual' },
-  referenceId: { type: DataTypes.UUID },
-  warehouseId: { type: DataTypes.UUID },
+  referenceId: { type: DataTypes.STRING(40) },
+  warehouseId: { type: DataTypes.STRING(40) },
   warehouseName: { type: DataTypes.STRING, defaultValue: '' },
   shelfCode: { type: DataTypes.STRING, defaultValue: '' },
-  userId: { type: DataTypes.UUID },
+  userId: { type: DataTypes.STRING(40) },
   userName: { type: DataTypes.STRING, defaultValue: '' }
 }), { tableName: 'stock_movements' }));
 
