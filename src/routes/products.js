@@ -1,6 +1,6 @@
 import express from 'express';
 import { Op } from 'sequelize';
-import { Product } from '../models/index.js';
+import { Product, Review } from '../models/index.js';
 import { authRequired, adminOnly } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -61,6 +61,28 @@ router.delete('/:id', authRequired, adminOnly, async (req,res)=>{
   const { id } = req.params;
   await Product.destroy({ where: { id } });
   res.json({ ok:true });
+});
+
+// ── Product reviews sub-routes (frontend calls /products/:id/reviews) ──
+router.get('/:id/reviews', async (req,res)=>{
+  const { id } = req.params;
+  const isAdmin = req.headers.authorization;
+  const where = { productId: id };
+  if(!isAdmin) where.approved = true;
+  const list = await Review.findAll({ where, order: [['createdAt', 'DESC']] });
+  res.json(list);
+});
+
+router.post('/:id/reviews', authRequired, async (req,res)=>{
+  try{
+    const { rating, comment } = req.body;
+    if(!rating) return res.status(400).json({ error:'Calificación requerida' });
+    const review = await Review.create({ userId:req.user.id, productId:req.params.id, rating, comment });
+    res.json(review);
+  }catch(err){
+    if(err.name==='SequelizeUniqueConstraintError') return res.status(400).json({ error:'Ya has dejado una reseña para este producto' });
+    res.status(400).json({ error:err.message });
+  }
 });
 
 export default router;

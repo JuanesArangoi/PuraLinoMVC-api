@@ -4,19 +4,9 @@ import { Review } from '../models/index.js';
 
 const router = express.Router();
 
-// List all pending reviews (admin) — MUST be before /:productId
-router.get('/admin/pending', authRequired, adminOnly, async (req,res)=>{
+// List all pending reviews (admin) — MUST be before /:id routes
+router.get('/pending', authRequired, adminOnly, async (req,res)=>{
   const list = await Review.findAll({ where: { approved:false }, order: [['createdAt', 'DESC']] });
-  res.json(list);
-});
-
-// List reviews for a product (approved only for public, all for admin)
-router.get('/:productId', async (req,res)=>{
-  const { productId } = req.params;
-  const isAdmin = req.headers.authorization; // simple check
-  const where = { productId };
-  if(!isAdmin) where.approved = true;
-  const list = await Review.findAll({ where, order: [['createdAt', 'DESC']] });
   res.json(list);
 });
 
