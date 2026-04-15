@@ -254,6 +254,21 @@ const Setting = addIdHook(sequelize.define('Setting', withMongoId({
 }), { tableName: 'settings' }));
 
 // ══════════════════════════════════════════════════════════════
+// BACKLOG ITEM
+// ══════════════════════════════════════════════════════════════
+const BacklogItem = addIdHook(sequelize.define('BacklogItem', withMongoId({
+  title: { type: DataTypes.STRING, allowNull: false },
+  description: { type: DataTypes.TEXT, defaultValue: '' },
+  priority: { type: DataTypes.STRING, defaultValue: 'media' },
+  status: { type: DataTypes.STRING, defaultValue: 'pendiente' },
+  category: { type: DataTypes.STRING, defaultValue: 'general' },
+  assignee: { type: DataTypes.STRING, defaultValue: '' },
+  dueDate: { type: DataTypes.DATE },
+  completedAt: { type: DataTypes.DATE },
+  createdBy: { type: DataTypes.STRING(40) }
+}), { tableName: 'backlog_items' }));
+
+// ══════════════════════════════════════════════════════════════
 // ASSOCIATIONS (optional FK constraints)
 // ══════════════════════════════════════════════════════════════
 // We keep them light to avoid cascade issues — the JSONB approach already handles embedded data
@@ -262,5 +277,5 @@ export {
   sequelize,
   User, Product, Order, Promotion, Return, Review,
   Wishlist, Coupon, GiftCard, Supplier, Warehouse,
-  PurchaseOrder, StockMovement, Setting
+  PurchaseOrder, StockMovement, Setting, BacklogItem
 };
