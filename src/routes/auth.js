@@ -19,7 +19,9 @@ router.post('/register', async (req,res)=>{
     if (!username || username.trim().length < 3) return res.status(400).json({ error:'El usuario debe tener al menos 3 caracteres' });
     if (!password || password.length < 6) return res.status(400).json({ error:'La contraseña debe tener al menos 6 caracteres' });
     if (!/[A-Z]/.test(password)) return res.status(400).json({ error:'La contraseña debe tener al menos una mayúscula' });
+    if (!/[a-z]/.test(password)) return res.status(400).json({ error:'La contraseña debe tener al menos una minúscula' });
     if (!/[0-9]/.test(password)) return res.status(400).json({ error:'La contraseña debe tener al menos un número' });
+    if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?`~]/.test(password)) return res.status(400).json({ error:'La contraseña debe tener al menos un carácter especial (!@#$%^&*...)' });
     
     // Check if username already exists
     const usernameExists = await User.findOne({ where: { username } });
@@ -305,8 +307,8 @@ ${endCard}`);
       <input type="hidden" id="token" value="${token}">
       <div class="form-group">
         <label for="newPassword">Nueva Contraseña</label>
-        <input type="password" id="newPassword" required placeholder="Mínimo 8 caracteres" minlength="8">
-        <p class="hint">Debe contener al menos una mayúscula, una minúscula y un número.</p>
+        <input type="password" id="newPassword" required placeholder="Mínimo 6 caracteres" minlength="6">
+        <p class="hint">Debe contener al menos: 1 mayúscula, 1 minúscula, 1 número y 1 carácter especial (!@#$%...).</p>
       </div>
       <div class="form-group">
         <label for="confirmPassword">Confirmar Contraseña</label>
@@ -326,10 +328,11 @@ ${endCard}`);
         const errorDiv = document.getElementById('error');
         errorDiv.textContent = '';
         
-        if (newPassword.length < 8) { errorDiv.textContent = 'La contraseña debe tener al menos 8 caracteres'; return; }
+        if (newPassword.length < 6) { errorDiv.textContent = 'La contraseña debe tener al menos 6 caracteres'; return; }
         if (!/[A-Z]/.test(newPassword)) { errorDiv.textContent = 'Debe contener al menos una letra mayúscula'; return; }
         if (!/[a-z]/.test(newPassword)) { errorDiv.textContent = 'Debe contener al menos una letra minúscula'; return; }
         if (!/[0-9]/.test(newPassword)) { errorDiv.textContent = 'Debe contener al menos un número'; return; }
+        if (!/[!@#$%^&*()_+\\-=\\[\\]{};':"\\\\|,.<>\\/?~]/.test(newPassword)) { errorDiv.textContent = 'Debe contener al menos un carácter especial (!@#$%^&*...)'; return; }
         if (newPassword !== confirmPassword) { errorDiv.textContent = 'Las contraseñas no coinciden'; return; }
         
         btn.disabled = true; btn.textContent = 'Procesando...';
@@ -371,6 +374,11 @@ router.post('/reset-password', async (req, res) => {
     if (!token || !newPassword) {
       return res.status(400).json({ error: 'Token y nueva contraseña requeridos' });
     }
+    if (newPassword.length < 6) return res.status(400).json({ error:'La contraseña debe tener al menos 6 caracteres' });
+    if (!/[A-Z]/.test(newPassword)) return res.status(400).json({ error:'Debe contener al menos una mayúscula' });
+    if (!/[a-z]/.test(newPassword)) return res.status(400).json({ error:'Debe contener al menos una minúscula' });
+    if (!/[0-9]/.test(newPassword)) return res.status(400).json({ error:'Debe contener al menos un número' });
+    if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?`~]/.test(newPassword)) return res.status(400).json({ error:'Debe contener al menos un carácter especial (!@#$%^&*...)' });
     
     const user = await User.findOne({
       where: {
