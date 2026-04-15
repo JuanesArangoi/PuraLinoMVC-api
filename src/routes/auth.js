@@ -5,7 +5,7 @@ import crypto from 'crypto';
 import { Op } from 'sequelize';
 import { User } from '../models/index.js';
 import { authRequired } from '../middleware/auth.js';
-import { sendVerificationEmail, sendPasswordResetEmail } from '../utils/emailService.js';
+import { sendVerificationEmail, sendPasswordResetEmail, send2FACode } from '../utils/emailService.js';
 
 const router = express.Router();
 
@@ -89,8 +89,21 @@ router.post('/login', async (req,res)=>{
     
     if(!user) return res.status(401).json({ error:'Credenciales inválidas' });
     
+    // Check if account is deactivated
+    if(user.active === false) return res.status(403).json({ error:'Tu cuenta ha sido desactivada. Contacta soporte para reactivarla.' });
+    
     const ok = await bcrypt.compare(password, user.passwordHash);
     if(!ok) return res.status(401).json({ error:'Credenciales inválidas' });
+    
+    // 2FA check
+    if(user.twoFactorEnabled) {
+      const code = Math.floor(100000 + Math.random() * 900000).toString();
+      user.twoFactorCode = code;
+      user.twoFactorExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 min
+      await user.save();
+      send2FACode(user.email, code).catch(e => console.error('📧 2FA email failed:', e.message));
+      return res.json({ requires2FA: true, userId: String(user.id), message: 'Código de verificación enviado a tu correo.' });
+    }
     
     const token = jwt.sign({ 
       id:String(user.id), 
@@ -108,7 +121,8 @@ router.post('/login', async (req,res)=>{
         email:user.email, 
         address:user.address, 
         phone:user.phone,
-        emailVerified: user.emailVerified
+        emailVerified: user.emailVerified,
+        twoFactorEnabled: user.twoFactorEnabled
       } 
     });
   }catch(err){ 
@@ -414,6 +428,99 @@ router.post('/resend-verification', async (req, res) => {
     res.json({ message: 'Correo de verificación reenviado' });
   } catch (err) {
     console.error('Resend verification error:', err);
+    res.status(500).json({ error: 'Error del servidor' });
+  }
+});
+
+// ── Verify 2FA code ──
+router.post('/verify-2fa', async (req, res) => {
+  try {
+    const { userId, code } = req.body;
+    if (!userId || !code) return res.status(400).json({ error: 'userId y código son requeridos' });
+    
+    const user = await User.findByPk(userId);
+    if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
+    if (user.active === false) return res.status(403).json({ error: 'Cuenta desactivada' });
+    
+    if (!user.twoFactorCode || !user.twoFactorExpires) {
+      return res.status(400).json({ error: 'No hay código pendiente. Inicia sesión de nuevo.' });
+    }
+    if (new Date() > new Date(user.twoFactorExpires)) {
+      return res.status(400).json({ error: 'El código ha expirado. Inicia sesión de nuevo.' });
+    }
+    if (user.twoFactorCode !== code) {
+      return res.status(401).json({ error: 'Código incorrecto' });
+    }
+    
+    // Clear 2FA code
+    user.twoFactorCode = null;
+    user.twoFactorExpires = null;
+    await user.save();
+    
+    const token = jwt.sign({
+      id: String(user.id),
+      role: user.role,
+      name: user.name
+    }, process.env.JWT_SECRET || 'dev_secret', { expiresIn: '7d' });
+    
+    res.json({
+      token,
+      user: {
+        id: String(user.id),
+        username: user.username,
+        role: user.role,
+        name: user.name,
+        email: user.email,
+        address: user.address,
+        phone: user.phone,
+        emailVerified: user.emailVerified,
+        twoFactorEnabled: user.twoFactorEnabled
+      }
+    });
+  } catch (err) {
+    console.error('Verify 2FA error:', err);
+    res.status(500).json({ error: 'Error del servidor' });
+  }
+});
+
+// ── Toggle 2FA ──
+router.post('/toggle-2fa', authRequired, async (req, res) => {
+  try {
+    const user = await User.findByPk(req.user.id);
+    if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
+    if (!user.email || !user.emailVerified) {
+      return res.status(400).json({ error: 'Necesitas un correo verificado para activar la autenticación en 2 pasos.' });
+    }
+    user.twoFactorEnabled = !user.twoFactorEnabled;
+    user.twoFactorCode = null;
+    user.twoFactorExpires = null;
+    await user.save();
+    res.json({ twoFactorEnabled: user.twoFactorEnabled, message: user.twoFactorEnabled ? 'Autenticación en 2 pasos activada' : 'Autenticación en 2 pasos desactivada' });
+  } catch (err) {
+    console.error('Toggle 2FA error:', err);
+    res.status(500).json({ error: 'Error del servidor' });
+  }
+});
+
+// ── Deactivate account (soft delete) ──
+router.post('/deactivate-account', authRequired, async (req, res) => {
+  try {
+    const { password } = req.body;
+    if (!password) return res.status(400).json({ error: 'Debes confirmar tu contraseña' });
+    
+    const user = await User.findByPk(req.user.id);
+    if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
+    
+    const ok = await bcrypt.compare(password, user.passwordHash);
+    if (!ok) return res.status(401).json({ error: 'Contraseña incorrecta' });
+    
+    user.active = false;
+    user.deactivatedAt = new Date();
+    await user.save();
+    
+    res.json({ message: 'Tu cuenta ha sido desactivada. Puedes contactar soporte para reactivarla.' });
+  } catch (err) {
+    console.error('Deactivate account error:', err);
     res.status(500).json({ error: 'Error del servidor' });
   }
 });

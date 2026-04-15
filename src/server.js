@@ -27,6 +27,7 @@ import paymentRoutes from './routes/payments.js';
 import manualUploadRoutes from './routes/manual-upload.js';
 import settingsRoutes from './routes/settings.js';
 import backlogRoutes from './routes/backlog.js';
+import chatbotRoutes from './routes/chatbot.js';
 import { seedIfEmpty } from './seed.js';
 
 dotenv.config();
@@ -187,3 +188,4 @@ app.use('/inventory', inventoryRoutes);
 app.use('/payments', paymentRoutes);
 app.use('/settings', settingsRoutes);
 app.use('/backlog', backlogRoutes);
+app.use('/chatbot', chatbotRoutes);

@@ -75,6 +75,19 @@ async function send(to, subject, html) {
   }
 }
 
+// ─── 0. Código 2FA ────────────────────────────────────────────
+export async function send2FACode(email, code) {
+  const html = layout('Código de Verificación', `
+    <p style="color:#555;line-height:1.6;">Has iniciado sesión en tu cuenta de Pura Lino. Ingresa el siguiente código para completar la autenticación:</p>
+    <div style="text-align:center;margin:28px 0;">
+      <span style="display:inline-block;background:#f5f5f0;border:2px solid #8b7355;border-radius:12px;padding:20px 40px;font-size:32px;letter-spacing:8px;font-weight:700;color:#333;">${code}</span>
+    </div>
+    <p style="color:#888;font-size:13px;text-align:center;">Este código expira en <strong>10 minutos</strong>.</p>
+    <p style="color:#888;font-size:13px;">Si no intentaste iniciar sesión, cambia tu contraseña inmediatamente.</p>
+  `);
+  return send(email, 'Código de verificación — Pura Lino', html);
+}
+
 // ─── 1. Verificación de email ────────────────────────────────
 export async function sendVerificationEmail(email, token) {
   const url = `${process.env.API_URL || 'http://localhost:4000'}/auth/verify-email?token=${token}`;

@@ -51,7 +51,12 @@ const User = addIdHook(sequelize.define('User', withMongoId({
   emailVerificationToken: { type: DataTypes.STRING },
   emailVerificationExpires: { type: DataTypes.DATE },
   passwordResetToken: { type: DataTypes.STRING },
-  passwordResetExpires: { type: DataTypes.DATE }
+  passwordResetExpires: { type: DataTypes.DATE },
+  active: { type: DataTypes.BOOLEAN, defaultValue: true },
+  deactivatedAt: { type: DataTypes.DATE },
+  twoFactorEnabled: { type: DataTypes.BOOLEAN, defaultValue: false },
+  twoFactorCode: { type: DataTypes.STRING },
+  twoFactorExpires: { type: DataTypes.DATE }
 }), { tableName: 'users' }));
 
 // ══════════════════════════════════════════════════════════════
