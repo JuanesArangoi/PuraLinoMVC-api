@@ -2,6 +2,7 @@ import express from 'express';
 import { Op } from 'sequelize';
 import { Product, Review } from '../models/index.js';
 import { authRequired, adminOnly } from '../middleware/auth.js';
+import { logActivity } from '../helpers/auditLog.js';
 
 const router = express.Router();
 
@@ -45,6 +46,7 @@ router.post('/', authRequired, adminOnly, async (req,res)=>{
   const body = req.body || {};
   // allow creating with or without variants
   const created = await Product.create(body);
+  logActivity({ action:'CREATE', entity:'product', entityId:created.id, entityName:created.name, req, details:{ price:created.price, category:created.category, stock:created.stock } });
   res.json(created);
 });
 
@@ -54,12 +56,16 @@ router.put('/:id', authRequired, adminOnly, async (req,res)=>{
   const product = await Product.findByPk(id);
   if(!product) return res.status(404).json({ error:'Not found' });
   await product.update(body);
+  logActivity({ action:'UPDATE', entity:'product', entityId:product.id, entityName:product.name, req, details:{ changes: Object.keys(body) } });
   res.json(product);
 });
 
 router.delete('/:id', authRequired, adminOnly, async (req,res)=>{
   const { id } = req.params;
+  const prod = await Product.findByPk(id);
+  const prodName = prod?.name || id;
   await Product.destroy({ where: { id } });
+  logActivity({ action:'DELETE', entity:'product', entityId:id, entityName:prodName, req });
   res.json({ ok:true });
 });
 
@@ -78,6 +84,7 @@ router.post('/:id/reviews', authRequired, async (req,res)=>{
     const { rating, comment } = req.body;
     if(!rating) return res.status(400).json({ error:'Calificación requerida' });
     const review = await Review.create({ userId:req.user.id, productId:req.params.id, rating, comment });
+    logActivity({ action:'CREATE', entity:'review', entityId:review.id, entityName:`Rating ${rating}`, req, details:{ productId:req.params.id, rating, comment } });
     res.json(review);
   }catch(err){
     if(err.name==='SequelizeUniqueConstraintError') return res.status(400).json({ error:'Ya has dejado una reseña para este producto' });

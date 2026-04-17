@@ -6,6 +6,7 @@ import { Op } from 'sequelize';
 import { User } from '../models/index.js';
 import { authRequired } from '../middleware/auth.js';
 import { sendVerificationEmail, sendPasswordResetEmail, send2FACode } from '../utils/emailService.js';
+import { logActivity } from '../helpers/auditLog.js';
 
 const router = express.Router();
 
@@ -49,6 +50,7 @@ router.post('/register', async (req,res)=>{
     sendVerificationEmail(email, emailVerificationToken)
       .catch(e => console.error('📧 Verification email failed:', e.message));
     
+    logActivity({ action:'REGISTER', entity:'user', entityId:user.id, entityName:user.username, req, details:{ email:user.email, name:user.name } });
     return res.json({ 
       id:user.id, 
       username, 
@@ -113,6 +115,7 @@ router.post('/login', async (req,res)=>{
       name:user.name 
     }, process.env.JWT_SECRET || 'dev_secret', { expiresIn:'7d' });
     
+    logActivity({ action:'LOGIN', entity:'user', entityId:String(user.id), entityName:user.username, req, userId:String(user.id), userName:user.name, userRole:user.role });
     res.json({ 
       token, 
       user: { 
@@ -193,6 +196,7 @@ router.get('/verify-email', async (req, res) => {
     user.emailVerificationExpires = null;
     await user.save();
     
+    logActivity({ action:'VERIFY_EMAIL', entity:'user', entityId:user.id, entityName:user.username, userId:user.id, userName:user.name, userRole:user.role, req });
     res.send(page('✅', '¡Cuenta Verificada!', `Tu cuenta <strong>${user.email}</strong> ha sido activada exitosamente. Ya puedes iniciar sesión.`, true));
   } catch (err) {
     console.error('Email verification error:', err);
@@ -397,6 +401,7 @@ router.post('/reset-password', async (req, res) => {
     user.passwordResetExpires = null;
     await user.save();
     
+    logActivity({ action:'RESET_PASSWORD', entity:'user', entityId:user.id, entityName:user.username, userId:user.id, userName:user.name, userRole:user.role, req });
     res.json({ message: 'Contraseña actualizada exitosamente' });
   } catch (err) {
     console.error('Reset password error:', err);
@@ -471,6 +476,7 @@ router.post('/verify-2fa', async (req, res) => {
       name: user.name
     }, process.env.JWT_SECRET || 'dev_secret', { expiresIn: '7d' });
     
+    logActivity({ action:'LOGIN_2FA', entity:'user', entityId:String(user.id), entityName:user.username, req, userId:String(user.id), userName:user.name, userRole:user.role });
     res.json({
       token,
       user: {
@@ -503,6 +509,7 @@ router.post('/toggle-2fa', authRequired, async (req, res) => {
     user.twoFactorCode = null;
     user.twoFactorExpires = null;
     await user.save();
+    logActivity({ action: user.twoFactorEnabled ? 'ENABLE_2FA' : 'DISABLE_2FA', entity:'user', entityId:user.id, entityName:user.username, req });
     res.json({ twoFactorEnabled: user.twoFactorEnabled, message: user.twoFactorEnabled ? 'Autenticación en 2 pasos activada' : 'Autenticación en 2 pasos desactivada' });
   } catch (err) {
     console.error('Toggle 2FA error:', err);
@@ -526,6 +533,7 @@ router.post('/deactivate-account', authRequired, async (req, res) => {
     user.deactivatedAt = new Date();
     await user.save();
     
+    logActivity({ action:'DEACTIVATE_ACCOUNT', entity:'user', entityId:user.id, entityName:user.username, req });
     res.json({ message: 'Tu cuenta ha sido desactivada. Puedes contactar soporte para reactivarla.' });
   } catch (err) {
     console.error('Deactivate account error:', err);

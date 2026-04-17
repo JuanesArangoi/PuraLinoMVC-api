@@ -2,6 +2,7 @@ import express from 'express';
 import crypto from 'crypto';
 import { authRequired, adminOnly } from '../middleware/auth.js';
 import { PurchaseOrder, Product, Warehouse, StockMovement } from '../models/index.js';
+import { logActivity } from '../helpers/auditLog.js';
 
 const router = express.Router();
 
@@ -73,6 +74,7 @@ router.post('/', authRequired, adminOnly, async (req, res) => {
       totalCost,
       status: 'borrador'
     });
+    logActivity({ action:'CREATE', entity:'purchase_order', entityId:po.id, entityName:po.poNumber, req, details:{ supplierName, totalCost, itemsCount:items.length } });
     res.json(po);
   } catch (err) { res.status(400).json({ error: err.message }); }
 });
@@ -83,7 +85,9 @@ router.patch('/:id/status', authRequired, adminOnly, async (req, res) => {
     const { status } = req.body;
     const po = await PurchaseOrder.findByPk(req.params.id);
     if (!po) return res.status(404).json({ error: 'Albarán no encontrado' });
+    const prevStatus = po.status;
     await po.update({ status });
+    logActivity({ action:'STATUS_CHANGE', entity:'purchase_order', entityId:po.id, entityName:po.poNumber, req, details:{ from:prevStatus, to:status } });
     res.json(po);
   } catch (err) { res.status(400).json({ error: err.message }); }
 });
@@ -106,6 +110,7 @@ router.put('/:id', authRequired, adminOnly, async (req, res) => {
     if (supplierId) po.supplierId = supplierId;
     if (supplierName) po.supplierName = supplierName;
     await po.save();
+    logActivity({ action:'UPDATE', entity:'purchase_order', entityId:po.id, entityName:po.poNumber, req, details:{ changes: Object.keys(req.body) } });
     res.json(po);
   } catch (err) { res.status(400).json({ error: err.message }); }
 });
@@ -244,6 +249,7 @@ router.post('/:id/receive', authRequired, adminOnly, async (req, res) => {
     po.changed('items', true);
     await po.save();
 
+    logActivity({ action:'RECEIVE_GOODS', entity:'purchase_order', entityId:po.id, entityName:po.poNumber, req, details:{ movementsCreated:movements.length, discrepancies, newStatus:po.status } });
     res.json({
       purchaseOrder: po,
       discrepancies,
@@ -258,7 +264,9 @@ router.delete('/:id', authRequired, adminOnly, async (req, res) => {
     const po = await PurchaseOrder.findByPk(req.params.id);
     if (!po) return res.status(404).json({ error: 'Albarán no encontrado' });
     if (po.status !== 'borrador') return res.status(400).json({ error: 'Solo se pueden eliminar albaranes en estado borrador' });
+    const poNum = po.poNumber;
     await po.destroy();
+    logActivity({ action:'DELETE', entity:'purchase_order', entityId:req.params.id, entityName:poNum, req });
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });

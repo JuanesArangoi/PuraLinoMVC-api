@@ -259,6 +259,21 @@ const Setting = addIdHook(sequelize.define('Setting', withMongoId({
 }), { tableName: 'settings' }));
 
 // ══════════════════════════════════════════════════════════════
+// AUDIT LOG — registro de cada movimiento en la aplicación
+// ══════════════════════════════════════════════════════════════
+const AuditLog = addIdHook(sequelize.define('AuditLog', withMongoId({
+  action:     { type: DataTypes.STRING, allowNull: false },          // CREATE, UPDATE, DELETE, LOGIN, LOGOUT, REGISTER, VERIFY_EMAIL, RESET_PASSWORD, ENABLE_2FA, APPROVE, REJECT, UPLOAD, etc.
+  entity:     { type: DataTypes.STRING, allowNull: false },          // product, order, user, promotion, return, review, supplier, warehouse, purchase_order, inventory, setting, giftcard, coupon, payment
+  entityId:   { type: DataTypes.STRING(40) },                        // ID de la entidad afectada
+  entityName: { type: DataTypes.STRING, defaultValue: '' },          // Nombre legible (ej: nombre del producto)
+  userId:     { type: DataTypes.STRING(40) },                        // Quién realizó la acción
+  userName:   { type: DataTypes.STRING, defaultValue: '' },          // Nombre del usuario
+  userRole:   { type: DataTypes.STRING, defaultValue: '' },          // Rol del usuario
+  details:    { type: DataTypes.JSONB, defaultValue: {} },           // Detalles específicos: cambios, valores antes/después, etc.
+  ipAddress:  { type: DataTypes.STRING, defaultValue: '' }           // IP del request
+}), { tableName: 'audit_logs', indexes: [{ fields: ['entity'] }, { fields: ['userId'] }, { fields: ['action'] }, { fields: ['createdAt'] }] }));
+
+// ══════════════════════════════════════════════════════════════
 // BACKLOG ITEM
 // ══════════════════════════════════════════════════════════════
 const BacklogItem = addIdHook(sequelize.define('BacklogItem', withMongoId({
@@ -282,5 +297,5 @@ export {
   sequelize,
   User, Product, Order, Promotion, Return, Review,
   Wishlist, Coupon, GiftCard, Supplier, Warehouse,
-  PurchaseOrder, StockMovement, Setting, BacklogItem
+  PurchaseOrder, StockMovement, Setting, BacklogItem, AuditLog
 };

@@ -1,6 +1,7 @@
 import express from 'express';
 import { authRequired, adminOnly } from '../middleware/auth.js';
 import { GiftCard } from '../models/index.js';
+import { logActivity } from '../helpers/auditLog.js';
 
 const router = express.Router();
 
@@ -8,6 +9,7 @@ const router = express.Router();
 router.post('/', authRequired, adminOnly, async (req,res)=>{
   const { code, balance } = req.body;
   const gc = await GiftCard.create({ code: code.toUpperCase(), balance });
+  logActivity({ action:'CREATE', entity:'giftcard', entityId:gc.id, entityName:gc.code, req, details:{ balance } });
   res.json(gc);
 });
 

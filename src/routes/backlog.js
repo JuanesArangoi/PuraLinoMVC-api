@@ -1,10 +1,80 @@
 import { Router } from 'express';
-import { BacklogItem } from '../models/index.js';
+import { Op } from 'sequelize';
+import { BacklogItem, AuditLog } from '../models/index.js';
 import { authRequired, adminOnly } from '../middleware/auth.js';
+import { logActivity } from '../helpers/auditLog.js';
 
 const router = Router();
 
-// GET /backlog — list all items (admin only)
+// ══════════════════════════════════════════════════════════════
+// AUDIT LOG — registro de cada movimiento en la aplicación
+// ══════════════════════════════════════════════════════════════
+
+// GET /backlog/audit — list audit logs with filters (admin only)
+router.get('/audit', authRequired, adminOnly, async (req, res) => {
+  try {
+    const { entity, action, userId, from, to, search, limit: lim, offset: off } = req.query;
+    const where = {};
+
+    if (entity) where.entity = entity;
+    if (action) where.action = action;
+    if (userId) where.userId = userId;
+    if (from || to) {
+      where.createdAt = {};
+      if (from) where.createdAt[Op.gte] = new Date(from);
+      if (to) where.createdAt[Op.lte] = new Date(to);
+    }
+    if (search) {
+      where[Op.or] = [
+        { entityName: { [Op.iLike]: `%${search}%` } },
+        { userName: { [Op.iLike]: `%${search}%` } },
+        { action: { [Op.iLike]: `%${search}%` } }
+      ];
+    }
+
+    const limit = Math.min(parseInt(lim) || 100, 500);
+    const offset = parseInt(off) || 0;
+
+    const { rows, count } = await AuditLog.findAndCountAll({
+      where,
+      order: [['createdAt', 'DESC']],
+      limit,
+      offset
+    });
+
+    res.json({ logs: rows, total: count, limit, offset });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /backlog/audit/stats — summary stats for dashboard
+router.get('/audit/stats', authRequired, adminOnly, async (req, res) => {
+  try {
+    const total = await AuditLog.count();
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const todayCount = await AuditLog.count({ where: { createdAt: { [Op.gte]: today } } });
+
+    // Count by entity
+    const [byEntity] = await AuditLog.sequelize.query(
+      'SELECT entity, COUNT(*)::int as count FROM audit_logs GROUP BY entity ORDER BY count DESC'
+    );
+    // Count by action
+    const [byAction] = await AuditLog.sequelize.query(
+      'SELECT action, COUNT(*)::int as count FROM audit_logs GROUP BY action ORDER BY count DESC LIMIT 10'
+    );
+
+    res.json({ total, todayCount, byEntity, byAction });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ══════════════════════════════════════════════════════════════
+// BACKLOG ITEMS — tareas del backlog del proyecto
+// ══════════════════════════════════════════════════════════════
+
+// GET /backlog — list all backlog items (admin only)
 router.get('/', authRequired, adminOnly, async (req, res) => {
   try {
     const items = await BacklogItem.findAll({ order: [['createdAt', 'DESC']] });
@@ -40,6 +110,7 @@ router.post('/', authRequired, adminOnly, async (req, res) => {
       dueDate: dueDate || null,
       createdBy: req.user.id
     });
+    logActivity({ action:'CREATE', entity:'backlog', entityId:item.id, entityName:item.title, req });
     res.status(201).json(item);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -64,6 +135,7 @@ router.put('/:id', authRequired, adminOnly, async (req, res) => {
     if (assignee !== undefined) item.assignee = assignee;
     if (dueDate !== undefined) item.dueDate = dueDate || null;
     await item.save();
+    logActivity({ action:'UPDATE', entity:'backlog', entityId:item.id, entityName:item.title, req, details:{ changes: Object.keys(req.body) } });
     res.json(item);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -75,7 +147,9 @@ router.delete('/:id', authRequired, adminOnly, async (req, res) => {
   try {
     const item = await BacklogItem.findByPk(req.params.id);
     if (!item) return res.status(404).json({ error: 'Item no encontrado' });
+    const itemTitle = item.title;
     await item.destroy();
+    logActivity({ action:'DELETE', entity:'backlog', entityId:req.params.id, entityName:itemTitle, req });
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });

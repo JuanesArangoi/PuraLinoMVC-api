@@ -3,6 +3,7 @@ import { Op } from 'sequelize';
 import { authRequired, adminOnly } from '../middleware/auth.js';
 import { Order, Product, User, Promotion, GiftCard } from '../models/index.js';
 import { sendOrderConfirmation, sendInvoiceEmail, sendOrderStatusUpdate, sendTrackingUpdate } from '../utils/emailService.js';
+import { logActivity } from '../helpers/auditLog.js';
 
 const router = express.Router();
 
@@ -52,6 +53,7 @@ router.patch('/:id/tracking/meta', authRequired, adminOnly, async (req,res)=>{
   const o = await Order.findByPk(id);
   if(!o) return res.status(404).json({ error:'Not found' });
   await o.update({ trackingNumber, carrier });
+  logActivity({ action:'UPDATE', entity:'order', entityId:o.id, entityName:o.invoiceNumber||id, req, details:{ trackingNumber, carrier } });
   res.json({ trackingNumber: o.trackingNumber||'', carrier: o.carrier||'' });
 });
 
@@ -67,6 +69,7 @@ router.post('/:id/tracking', authRequired, adminOnly, async (req,res)=>{
   if (o.email) {
     sendTrackingUpdate(o, { status, note, date: new Date() }).catch(e => console.error('📧 Tracking email failed:', e.message));
   }
+  logActivity({ action:'ADD_TRACKING', entity:'order', entityId:o.id, entityName:o.invoiceNumber||id, req, details:{ status, note } });
   res.json({ events: o.trackingEvents });
 });
 
@@ -182,6 +185,7 @@ router.post('/', authRequired, async (req,res)=>{
       sendInvoiceEmail(order).catch(e => console.error('📧 Invoice email failed:', e.message));
     }
 
+    logActivity({ action:'CREATE', entity:'order', entityId:order.id, entityName:order.invoiceNumber, req, details:{ total:order.total, items:orderItems.length, paymentMethod, shippingCity } });
     res.json(order);
   }catch(err){
     res.status(400).json({ error: err.message || 'Order error' });
@@ -195,7 +199,9 @@ router.patch('/:id/status', authRequired, adminOnly, async (req,res)=>{
   if(!allowed.includes(status)) return res.status(400).json({ error:'Invalid status' });
   const updated = await Order.findByPk(id);
   if(!updated) return res.status(404).json({ error:'Not found' });
+  const prevStatus = updated.status;
   await updated.update({ status });
+  logActivity({ action:'STATUS_CHANGE', entity:'order', entityId:updated.id, entityName:updated.invoiceNumber, req, details:{ from:prevStatus, to:status } });
   if (updated.email) {
     sendOrderStatusUpdate(updated, status).catch(e => console.error('📧 Status update email failed:', e.message));
   }

@@ -8,6 +8,7 @@ import {
   sendReturnReceived,
   sendReturnReviewResult
 } from '../utils/emailService.js';
+import { logActivity } from '../helpers/auditLog.js';
 
 const router = express.Router();
 
@@ -121,6 +122,7 @@ router.post('/', authRequired, async (req, res) => {
       orderDate
     });
 
+    logActivity({ action:'CREATE', entity:'return', entityId:ret.id, entityName:ret.returnNumber, req, details:{ orderId, productName:ret.productName, type, reason } });
     res.json(ret);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -154,6 +156,7 @@ router.patch('/:id/approve', authRequired, adminOnly, async (req, res) => {
       sendReturnApproved(ret).catch(e => console.error('📧 Return approved email failed:', e.message));
     }
 
+    logActivity({ action:'APPROVE', entity:'return', entityId:ret.id, entityName:ret.returnNumber, req, details:{ warehouseName:warehouse.name } });
     res.json(ret);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -176,6 +179,7 @@ router.patch('/:id/reject', authRequired, adminOnly, async (req, res) => {
     ret.rejectionReason = rejectionReason;
     await ret.save();
 
+    logActivity({ action:'REJECT', entity:'return', entityId:ret.id, entityName:ret.returnNumber, req, details:{ rejectionReason } });
     if (ret.customerEmail) {
       sendReturnRejected(ret).catch(e => console.error('📧 Return rejected email failed:', e.message));
     }
@@ -200,6 +204,7 @@ router.patch('/:id/received', authRequired, adminOnly, async (req, res) => {
     ret.status = 'recibida';
     await ret.save();
 
+    logActivity({ action:'RECEIVED', entity:'return', entityId:ret.id, entityName:ret.returnNumber, req });
     if (ret.customerEmail) {
       sendReturnReceived(ret).catch(e => console.error('📧 Return received email failed:', e.message));
     }
@@ -275,6 +280,7 @@ router.patch('/:id/review', authRequired, adminOnly, async (req, res) => {
 
     await ret.save();
 
+    logActivity({ action:'REVIEW', entity:'return', entityId:ret.id, entityName:ret.returnNumber, req, details:{ result, couponCode:ret.couponCode, couponValue:ret.couponValue } });
     // Send review result email with coupon if apt
     if (ret.customerEmail) {
       sendReturnReviewResult(ret).catch(e => console.error('📧 Return review email failed:', e.message));

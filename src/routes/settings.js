@@ -4,6 +4,7 @@ import multer from 'multer';
 import { CloudinaryStorage } from 'multer-storage-cloudinary';
 import { authRequired, adminOnly } from '../middleware/auth.js';
 import { Setting } from '../models/index.js';
+import { logActivity } from '../helpers/auditLog.js';
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -52,6 +53,7 @@ router.put('/banner', authRequired, adminOnly, async (req, res) => {
     const current = await Setting.findOne({ where: { key: 'banner' } });
     const value = current ? { ...current.value, title, subtitle } : { imageUrl: '', title, subtitle };
     const setting = await upsertSetting('banner', value);
+    logActivity({ action:'UPDATE', entity:'setting', entityId:'banner', entityName:'Banner texto', req, details:{ title, subtitle } });
     res.json(setting.value);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -79,6 +81,7 @@ router.post('/banner/image', authRequired, adminOnly, upload.single('image'), as
 
     const setting = await upsertSetting('banner', value);
 
+    logActivity({ action:'UPLOAD', entity:'setting', entityId:'banner', entityName:'Banner imagen', req, details:{ imageUrl } });
     res.json(setting.value);
   } catch (err) {
     console.error('Banner upload error:', err);
@@ -95,6 +98,7 @@ router.delete('/banner/image', authRequired, adminOnly, async (req, res) => {
     }
     const value = current ? { ...current.value, imageUrl: '', publicId: '' } : { imageUrl: '', publicId: '', title: '', subtitle: '' };
     const setting = await upsertSetting('banner', value);
+    logActivity({ action:'DELETE', entity:'setting', entityId:'banner', entityName:'Banner imagen', req });
     res.json(setting.value);
   } catch (err) {
     res.status(500).json({ error: err.message });

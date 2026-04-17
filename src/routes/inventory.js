@@ -1,6 +1,7 @@
 import express from 'express';
 import { authRequired, adminOnly } from '../middleware/auth.js';
 import { StockMovement, Product } from '../models/index.js';
+import { logActivity } from '../helpers/auditLog.js';
 
 const router = express.Router();
 
@@ -97,6 +98,7 @@ router.post('/adjust', authRequired, adminOnly, async (req, res) => {
       userName: req.user.name || ''
     });
 
+    logActivity({ action:'STOCK_ADJUSTMENT', entity:'inventory', entityId:product.id, entityName:product.name, req, details:{ type, quantity, variantId, reason, newStock: variantId ? undefined : product.stock } });
     res.json({ product, movement });
   } catch (err) { res.status(400).json({ error: err.message }); }
 });

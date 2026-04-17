@@ -2,6 +2,7 @@ import express from 'express';
 import { Op } from 'sequelize';
 import { authRequired, adminOnly } from '../middleware/auth.js';
 import { User } from '../models/index.js';
+import { logActivity } from '../helpers/auditLog.js';
 
 const router = express.Router();
 
@@ -26,6 +27,7 @@ router.put('/me', authRequired, async (req,res)=>{
     if(phone!==undefined) current.phone = phone;
     if(username) current.username = username;
     await current.save();
+    logActivity({ action:'UPDATE', entity:'user', entityId:current.id, entityName:current.username, req, details:{ changes: Object.keys(req.body).filter(k => req.body[k] !== undefined) } });
     const json = current.toJSON();
     delete json.passwordHash;
     res.json(json);

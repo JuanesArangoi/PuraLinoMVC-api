@@ -2,6 +2,7 @@ import express from 'express';
 import crypto from 'crypto';
 import { authRequired, adminOnly } from '../middleware/auth.js';
 import { Warehouse } from '../models/index.js';
+import { logActivity } from '../helpers/auditLog.js';
 
 const router = express.Router();
 
@@ -28,6 +29,7 @@ router.post('/', authRequired, adminOnly, async (req, res) => {
     const { name, location, shelves } = req.body;
     if (!name || !name.trim()) return res.status(400).json({ error: 'El nombre del almacén es obligatorio' });
     const warehouse = await Warehouse.create({ name: name.trim(), location, shelves: shelves || [] });
+    logActivity({ action:'CREATE', entity:'warehouse', entityId:warehouse.id, entityName:warehouse.name, req, details:{ location } });
     res.json(warehouse);
   } catch (err) { res.status(400).json({ error: err.message }); }
 });
@@ -39,6 +41,7 @@ router.put('/:id', authRequired, adminOnly, async (req, res) => {
     const w = await Warehouse.findByPk(req.params.id);
     if (!w) return res.status(404).json({ error: 'Almacén no encontrado' });
     await w.update({ name, location, shelves, active });
+    logActivity({ action:'UPDATE', entity:'warehouse', entityId:w.id, entityName:w.name, req, details:{ changes: Object.keys(req.body) } });
     res.json(w);
   } catch (err) { res.status(400).json({ error: err.message }); }
 });
@@ -57,6 +60,7 @@ router.post('/:id/shelves', authRequired, adminOnly, async (req, res) => {
     w.shelves = shelves;
     w.changed('shelves', true);
     await w.save();
+    logActivity({ action:'ADD_SHELF', entity:'warehouse', entityId:w.id, entityName:w.name, req, details:{ shelfCode:code.trim() } });
     res.json(w);
   } catch (err) { res.status(400).json({ error: err.message }); }
 });
@@ -69,6 +73,7 @@ router.delete('/:id/shelves/:shelfId', authRequired, adminOnly, async (req, res)
     w.shelves = (w.shelves || []).filter(s => String(s._id) !== req.params.shelfId);
     w.changed('shelves', true);
     await w.save();
+    logActivity({ action:'REMOVE_SHELF', entity:'warehouse', entityId:w.id, entityName:w.name, req, details:{ shelfId:req.params.shelfId } });
     res.json(w);
   } catch (err) { res.status(400).json({ error: err.message }); }
 });
@@ -78,7 +83,9 @@ router.delete('/:id', authRequired, adminOnly, async (req, res) => {
   try {
     const w = await Warehouse.findByPk(req.params.id);
     if (!w) return res.status(404).json({ error: 'Almacén no encontrado' });
+    const wName = w.name;
     await w.destroy();
+    logActivity({ action:'DELETE', entity:'warehouse', entityId:req.params.id, entityName:wName, req });
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
