@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { Op } from 'sequelize';
-import { BacklogItem, AuditLog } from '../models/index.js';
+import { sequelize, BacklogItem, AuditLog } from '../models/index.js';
 import { authRequired, adminOnly } from '../middleware/auth.js';
 import { logActivity } from '../helpers/auditLog.js';
 
@@ -65,6 +65,82 @@ router.get('/audit/stats', authRequired, adminOnly, async (req, res) => {
     );
 
     res.json({ total, todayCount, byEntity, byAction });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ══════════════════════════════════════════════════════════════
+// DB CHANGELOG — auditoría a nivel de base de datos (triggers)
+// ══════════════════════════════════════════════════════════════
+
+// GET /backlog/db-changelog — list database-level changes
+router.get('/db-changelog', authRequired, adminOnly, async (req, res) => {
+  try {
+    const { table_name, operation, record_id, from, to, limit: lim, offset: off } = req.query;
+    const conditions = [];
+    const replacements = {};
+
+    if (table_name) { conditions.push('table_name = :table_name'); replacements.table_name = table_name; }
+    if (operation)  { conditions.push('operation = :operation');   replacements.operation = operation.toUpperCase(); }
+    if (record_id)  { conditions.push('record_id = :record_id');  replacements.record_id = record_id; }
+    if (from)       { conditions.push('executed_at >= :from');     replacements.from = new Date(from); }
+    if (to)         { conditions.push('executed_at <= :to');       replacements.to = new Date(to); }
+
+    const where = conditions.length ? 'WHERE ' + conditions.join(' AND ') : '';
+    const limit = Math.min(parseInt(lim) || 100, 500);
+    const offset = parseInt(off) || 0;
+
+    const [rows] = await sequelize.query(
+      `SELECT id, table_name, operation, record_id, changed_fields, db_user, executed_at FROM db_changelog ${where} ORDER BY executed_at DESC LIMIT :limit OFFSET :offset`,
+      { replacements: { ...replacements, limit, offset } }
+    );
+    const [[{ count }]] = await sequelize.query(
+      `SELECT COUNT(*)::int as count FROM db_changelog ${where}`,
+      { replacements }
+    );
+
+    res.json({ logs: rows, total: count, limit, offset });
+  } catch (err) {
+    if (err.message.includes('does not exist')) {
+      return res.status(404).json({ error: 'Tabla db_changelog no existe. Ejecuta el script de migración primero.' });
+    }
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /backlog/db-changelog/stats — summary stats
+router.get('/db-changelog/stats', authRequired, adminOnly, async (req, res) => {
+  try {
+    const [[{ total }]] = await sequelize.query('SELECT COUNT(*)::int as total FROM db_changelog');
+
+    const [byTable] = await sequelize.query(
+      'SELECT table_name, COUNT(*)::int as count FROM db_changelog GROUP BY table_name ORDER BY count DESC'
+    );
+    const [byOperation] = await sequelize.query(
+      'SELECT operation, COUNT(*)::int as count FROM db_changelog GROUP BY operation ORDER BY count DESC'
+    );
+    const [recent] = await sequelize.query(
+      `SELECT id, table_name, operation, record_id, changed_fields, executed_at FROM db_changelog ORDER BY executed_at DESC LIMIT 10`
+    );
+
+    res.json({ total, byTable, byOperation, recent });
+  } catch (err) {
+    if (err.message.includes('does not exist')) {
+      return res.status(404).json({ error: 'Tabla db_changelog no existe. Ejecuta el script de migración primero.' });
+    }
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /backlog/db-changelog/:recordId — history of a specific record
+router.get('/db-changelog/:recordId', authRequired, adminOnly, async (req, res) => {
+  try {
+    const [rows] = await sequelize.query(
+      'SELECT * FROM db_changelog WHERE record_id = :recordId ORDER BY executed_at ASC',
+      { replacements: { recordId: req.params.recordId } }
+    );
+    res.json(rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
