@@ -92,7 +92,7 @@ router.get('/db-changelog', authRequired, adminOnly, async (req, res) => {
     const offset = parseInt(off) || 0;
 
     const [rows] = await sequelize.query(
-      `SELECT id, table_name, operation, record_id, changed_fields, db_user, executed_at FROM db_changelog ${where} ORDER BY executed_at DESC LIMIT :limit OFFSET :offset`,
+      `SELECT id, table_name, operation, record_id, changed_fields, db_user, app_user_id, app_user_name, app_user_role, executed_at FROM db_changelog ${where} ORDER BY executed_at DESC LIMIT :limit OFFSET :offset`,
       { replacements: { ...replacements, limit, offset } }
     );
     const [[{ count }]] = await sequelize.query(
@@ -121,7 +121,7 @@ router.get('/db-changelog/stats', authRequired, adminOnly, async (req, res) => {
       'SELECT operation, COUNT(*)::int as count FROM db_changelog GROUP BY operation ORDER BY count DESC'
     );
     const [recent] = await sequelize.query(
-      `SELECT id, table_name, operation, record_id, changed_fields, executed_at FROM db_changelog ORDER BY executed_at DESC LIMIT 10`
+      `SELECT id, table_name, operation, record_id, changed_fields, app_user_id, app_user_name, app_user_role, executed_at FROM db_changelog ORDER BY executed_at DESC LIMIT 10`
     );
 
     res.json({ total, byTable, byOperation, recent });

@@ -293,6 +293,28 @@ const BacklogItem = addIdHook(sequelize.define('BacklogItem', withMongoId({
 // ══════════════════════════════════════════════════════════════
 // We keep them light to avoid cascade issues — the JSONB approach already handles embedded data
 
+// ══════════════════════════════════════════════════════════════
+// HOOKS: enriquecer db_changelog con info del usuario de la app
+// ══════════════════════════════════════════════════════════════
+import { getCurrentUser } from '../helpers/requestContext.js';
+
+function enrichChangelog(instance, operation) {
+  const user = getCurrentUser();
+  if (!user?.id || !instance?.id) return;
+  sequelize.query(
+    `UPDATE db_changelog SET app_user_id = :uid, app_user_name = :uname, app_user_role = :urole
+     WHERE id = (SELECT id FROM db_changelog WHERE record_id = :rid AND operation = :op ORDER BY executed_at DESC LIMIT 1)`,
+    { replacements: { uid: user.id, uname: user.name || user.username || '', urole: user.role || '', rid: String(instance.id), op: operation }, type: 'UPDATE' }
+  ).catch(() => {});
+}
+
+const trackedModels = [User, Product, Order, Promotion, Return, Review, Wishlist, Coupon, GiftCard, Supplier, Warehouse, PurchaseOrder, StockMovement, Setting, BacklogItem];
+for (const Model of trackedModels) {
+  Model.addHook('afterCreate',  (inst) => enrichChangelog(inst, 'INSERT'));
+  Model.addHook('afterUpdate',  (inst) => enrichChangelog(inst, 'UPDATE'));
+  Model.addHook('afterDestroy', (inst) => enrichChangelog(inst, 'DELETE'));
+}
+
 export {
   sequelize,
   User, Product, Order, Promotion, Return, Review,

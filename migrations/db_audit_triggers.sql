@@ -14,6 +14,9 @@ CREATE TABLE IF NOT EXISTS db_changelog (
     new_data      JSONB,
     changed_fields TEXT[],
     db_user       VARCHAR(100)  DEFAULT current_user,
+    app_user_id   VARCHAR(40)   DEFAULT '',
+    app_user_name VARCHAR(255)  DEFAULT '',
+    app_user_role VARCHAR(50)   DEFAULT '',
     executed_at   TIMESTAMPTZ   DEFAULT now()
 );
 
