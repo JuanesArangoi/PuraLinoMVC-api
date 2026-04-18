@@ -7,6 +7,7 @@ import { User } from '../models/index.js';
 import { authRequired } from '../middleware/auth.js';
 import { sendVerificationEmail, sendPasswordResetEmail, send2FACode } from '../utils/emailService.js';
 import { logActivity } from '../helpers/auditLog.js';
+import { loginAttemptsTotal, registrationsTotal } from '../helpers/metrics.js';
 
 const router = express.Router();
 
@@ -50,6 +51,7 @@ router.post('/register', async (req,res)=>{
     sendVerificationEmail(email, emailVerificationToken)
       .catch(e => console.error('📧 Verification email failed:', e.message));
     
+    registrationsTotal.inc();
     logActivity({ action:'REGISTER', entity:'user', entityId:user.id, entityName:user.username, req, details:{ email:user.email, name:user.name } });
     return res.json({ 
       id:user.id, 
@@ -91,13 +93,13 @@ router.post('/login', async (req,res)=>{
       }
     });
     
-    if(!user) return res.status(401).json({ error:'Credenciales inválidas' });
+    if(!user){ loginAttemptsTotal.inc({ status:'failed' }); return res.status(401).json({ error:'Credenciales inválidas' }); }
     
     // Check if account is deactivated
     if(user.active === false) return res.status(403).json({ error:'Tu cuenta ha sido desactivada. Contacta soporte para reactivarla.' });
     
     const ok = await bcrypt.compare(password, user.passwordHash);
-    if(!ok) return res.status(401).json({ error:'Credenciales inválidas' });
+    if(!ok){ loginAttemptsTotal.inc({ status:'failed' }); return res.status(401).json({ error:'Credenciales inválidas' }); }
     
     // 2FA check
     if(user.twoFactorEnabled) {
@@ -106,6 +108,7 @@ router.post('/login', async (req,res)=>{
       user.twoFactorExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 min
       await user.save();
       send2FACode(user.email, code).catch(e => console.error('📧 2FA email failed:', e.message));
+      loginAttemptsTotal.inc({ status:'2fa_required' });
       return res.json({ requires2FA: true, userId: String(user.id), message: 'Código de verificación enviado a tu correo.' });
     }
     
@@ -115,6 +118,7 @@ router.post('/login', async (req,res)=>{
       name:user.name 
     }, process.env.JWT_SECRET || 'dev_secret', { expiresIn:'7d' });
     
+    loginAttemptsTotal.inc({ status:'success' });
     logActivity({ action:'LOGIN', entity:'user', entityId:String(user.id), entityName:user.username, req, userId:String(user.id), userName:user.name, userRole:user.role });
     res.json({ 
       token, 

@@ -1,18 +1,21 @@
 -- ============================================================
--- AUDIT LOG A NIVEL DE BASE DE DATOS
--- Registra automáticamente INSERT, UPDATE, DELETE en todas las
--- tablas principales con fecha, hora, tabla, operación y datos.
+-- AUDIT LOG COMPLETO A NIVEL DE BASE DE DATOS
+-- Registra TODO: CRUD (via triggers) + eventos de aplicación
+-- (login, logout, 2FA, etc.) via función PostgreSQL.
+-- Una sola tabla: db_changelog
 -- ============================================================
 
 -- 1. Crear tabla de auditoría de BD
 CREATE TABLE IF NOT EXISTS db_changelog (
     id            BIGSERIAL PRIMARY KEY,
     table_name    VARCHAR(100)  NOT NULL,
-    operation     VARCHAR(10)   NOT NULL,  -- INSERT, UPDATE, DELETE
+    operation     VARCHAR(50)   NOT NULL,  -- INSERT, UPDATE, DELETE, LOGIN, LOGOUT, LOGIN_FAILED, 2FA_SENT, 2FA_VERIFIED, REGISTER, PASSWORD_RESET, SESSION_RESTORED, etc.
     record_id     VARCHAR(40),
     old_data      JSONB,
     new_data      JSONB,
     changed_fields TEXT[],
+    details       JSONB         DEFAULT '{}',
+    ip_address    VARCHAR(45)   DEFAULT '',
     db_user       VARCHAR(100)  DEFAULT current_user,
     app_user_id   VARCHAR(40)   DEFAULT '',
     app_user_name VARCHAR(255)  DEFAULT '',
@@ -25,6 +28,7 @@ CREATE INDEX IF NOT EXISTS idx_changelog_table     ON db_changelog (table_name);
 CREATE INDEX IF NOT EXISTS idx_changelog_operation ON db_changelog (operation);
 CREATE INDEX IF NOT EXISTS idx_changelog_record    ON db_changelog (record_id);
 CREATE INDEX IF NOT EXISTS idx_changelog_date      ON db_changelog (executed_at);
+CREATE INDEX IF NOT EXISTS idx_changelog_app_user  ON db_changelog (app_user_id);
 
 -- 2. Función trigger genérica
 CREATE OR REPLACE FUNCTION fn_db_changelog()
@@ -165,6 +169,31 @@ DROP TRIGGER IF EXISTS trg_changelog_audit_logs ON audit_logs;
 CREATE TRIGGER trg_changelog_audit_logs
     AFTER INSERT OR UPDATE OR DELETE ON audit_logs
     FOR EACH ROW EXECUTE FUNCTION fn_db_changelog();
+
+-- ============================================================
+-- 4. Función para registrar eventos de aplicación
+-- (login, logout, 2FA, password reset, etc.)
+-- Se invoca desde la aplicación Node.js con un simple INSERT
+-- ============================================================
+CREATE OR REPLACE FUNCTION fn_log_app_event(
+    p_table_name VARCHAR,
+    p_operation  VARCHAR,
+    p_record_id  VARCHAR DEFAULT NULL,
+    p_details    JSONB   DEFAULT '{}',
+    p_ip_address VARCHAR DEFAULT '',
+    p_user_id    VARCHAR DEFAULT '',
+    p_user_name  VARCHAR DEFAULT '',
+    p_user_role  VARCHAR DEFAULT ''
+) RETURNS BIGINT AS $$
+DECLARE
+    new_id BIGINT;
+BEGIN
+    INSERT INTO db_changelog (table_name, operation, record_id, details, ip_address, app_user_id, app_user_name, app_user_role)
+    VALUES (p_table_name, p_operation, p_record_id, p_details, p_ip_address, p_user_id, p_user_name, p_user_role)
+    RETURNING id INTO new_id;
+    RETURN new_id;
+END;
+$$ LANGUAGE plpgsql;
 
 -- ============================================================
 -- CONSULTAS ÚTILES

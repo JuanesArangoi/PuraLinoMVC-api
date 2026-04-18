@@ -9,6 +9,7 @@ const __dirname = path.dirname(__filename);
 
 import jwt from 'jsonwebtoken';
 import { asyncContext } from './helpers/requestContext.js';
+import { metricsMiddleware, metricsEndpoint } from './helpers/metrics.js';
 import { sequelize } from './models/index.js';
 import authRoutes from './routes/auth.js';
 import productRoutes from './routes/products.js';
@@ -48,6 +49,10 @@ app.use(cors({
   credentials: true
 }));
 app.use(express.json());
+
+// Middleware: métricas para Prometheus
+app.use(metricsMiddleware);
+app.get('/metrics', metricsEndpoint);
 
 // Middleware: capturar usuario autenticado para el db_changelog
 app.use((req, res, next) => {
