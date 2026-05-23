@@ -208,3 +208,4 @@ app.use('/settings', settingsRoutes);
 app.use('/backlog', backlogRoutes);
 app.use('/chatbot', chatbotRoutes);
 // CI/CD test trigger sáb 23 may 2026 16:07:49 -05
+// CI/CD OK
